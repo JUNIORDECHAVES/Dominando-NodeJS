@@ -1,8 +1,9 @@
+import "dotenv/config";
 module.exports = {  
-        username: 'root',
-        password: 'user:junior12345',
-        database: 'dominando-nodejs',
-        host: '127.0.0.1',
+        username: process.env.DB_USERNAME,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DATABASE,
+        host: process.env.DB_HOST,
         dialect: 'mysql',
         define: {
             timestamps: true, // cria duas colunas createdAt e updatedAt, data de criação e atualização

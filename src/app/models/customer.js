@@ -12,7 +12,7 @@ class Customer extends Model {
                 name: {
                     singular: "customer",
                     plural: "customers",
-                }
+                },
             }
         );
     };

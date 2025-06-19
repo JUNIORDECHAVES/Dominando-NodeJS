@@ -1,26 +1,49 @@
 import express from "express";
 import routes from "./routes";
-import "./database"
+import "./database";
 
-// import authMiddleware from "./app/middlewares/auth";
+import sentryConfig from "./config/sentry";
+import * as Sentry from "@sentry/node";
+
+import "express-async-errors";
+import Youch from "youch";
+import "dotenv/config";
 
 class App {
     constructor() {
-        this.server = express()
-        this.middlewares()
-        this.routes()
-        
+        this.server = express();
+
+        Sentry.init({
+            dsn: sentryConfig.dsn,
+            sendDefaultPii: sentryConfig.sendDefaultPii
+        });
+
+        this.middlewares();
+        this.routes();
+        this.exceptionHandle();
     }
 
     middlewares() {
-        this.server.use(express.json())
-        this.server.use(express.urlencoded({ extended: false }))
-        // this.server.use(authMiddleware)
+        this.server.use(express.json());
+        this.server.use(express.urlencoded({ extended: false }));
+    }
+    
+    routes() {
+        this.server.use(routes);
+    }
+    
+    exceptionHandle() {
+        Sentry.setupExpressErrorHandler(this.server);
+        this.server.use(async (err, req, res, next) => {
+            if (process.env.NODE_ENV === "development") {
+                const errors = await new Youch(err, req).toJSON()
+                return res.status(500).json(errors)
+            }
+            return (res.status(500).json({ error: "Internal Server Error" }),
+            res.Sentry)
+        });
     }
 
-    routes() {
-        this.server.use(routes)
-    }
 }
 
 export default new App().server;

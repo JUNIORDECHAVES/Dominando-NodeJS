@@ -3,110 +3,84 @@ import { parseISO } from "date-fns";
 import * as Yup from "yup";
 
 import Customer from "../models/customer";
-import Contact from "../models/customer";
+import Contact from "../models/contact";
 
 class CustomersController {
 
     // retorna listagem de customers
-    async index(req, res) {
-        const {
-            name,
-            email,
-            status,
-            createdBefore,
-            createdAfter,
-            updatedBefore,
-            updatedAfter,
-            sort
-        } = req.query;
+    async index(req, res, next) {
+        try {
+            const {
+                name,
+                email,
+                status,
+                createdBefore,
+                createdAfter,
+                updatedBefore,
+                updatedAfter,
+                sort
+            } = req.query;
 
-        const page = req.query.page || 1;
-        const limit = req.query.limit || 25;
+            const page = req.query.page || 1;
+            const limit = req.query.limit || 25;
 
-        let where = {};
-        let order = [];
+            let where = {};
+            let order = [];
 
-        if (name) {
-            where = {
-                ...where,
-                name: {
-                    [Op.like]: name,
-                },
-            };
+            if (name) {
+                where = { ...where, name: { [Op.like]: name } };
+            }
+
+            if (email) {
+                where = { ...where, email: { [Op.like]: email } };
+            }
+
+            if (status) {
+                where = {
+                    ...where,
+                    status: { [Op.in]: status.split(",").map(item => item.toUpperCase()) }
+                };
+            }
+
+            if (createdBefore) {
+                where = { ...where, createdAt: { [Op.lte]: parseISO(createdBefore) } };
+            }
+
+            if (createdAfter) {
+                where = { ...where, createdAt: { [Op.gte]: parseISO(createdAfter) } };
+            }
+
+            if (updatedBefore) {
+                where = { ...where, updatedAt: { [Op.lte]: parseISO(updatedBefore) } };
+            }
+
+            if (updatedAfter) {
+                where = { ...where, updatedAt: { [Op.gte]: parseISO(updatedAfter) } };
+            }
+
+            if (sort) {
+                order = sort.split(",").map(item => item.split(":"));
+            }
+
+            const data = await Customer.findAll({
+                where,
+                include: [
+                    {
+                        model: Contact,
+                        attributes: ["id", "status"],
+                    }
+                ],
+                order,
+                limit,
+                offset: limit * page - limit,
+            });
+
+            return res.status(200).json(data);
+
+        } catch (err) {
+            // Isso envia o erro para o middleware global
+            return next(err);
         }
-
-        if (email) {
-            where = {
-                ...where,
-                email: {
-                    [Op.like]: email,
-                },
-            };
-        }
-
-        if (status) {
-            where = {
-                ...where,
-                status: {
-                    [Op.in]: status.split(",").map(item => item.toUpperCase()),
-                },
-            };
-        }
-
-        if (createdBefore) {
-            where = {
-                ...where,
-                createdAt: {
-                    [Op.lte]: parseISO(createdBefore),
-                },
-            };
-        }
-
-        if (createdAfter) {
-            where = {
-                ...where,
-                createdAt: {
-                    [Op.gte]: parseISO(createdAfter),
-                },
-            };
-        }
-
-        if (updatedBefore) {
-            where = {
-                ...where,
-                updatedAt: {
-                    [Op.lte]: parseISO(updatedBefore),
-                },
-            };
-        }
-
-        if (updatedAfter) {
-            where = {
-                ...where,
-                updatedAt: {
-                    [Op.gte]: parseISO(updatedAfter),
-                },
-            };
-        }
-
-        if (sort) {
-            order = sort.split(",").map(item => item.split(":"));
-        }
-
-        const data = await Customer.findAll({
-            where,
-            include: [
-                {
-                    model: Contact,
-                    attributes: ["id", "status"],
-                }
-            ],
-            order,
-            limit,
-            offset: limit * page - limit,
-        });
-
-        return res.status(200).json(data);
     };
 
     // retorna um customer especifico
@@ -115,7 +89,7 @@ class CustomersController {
 
         if (!customer) {
             return res.status(404).json();
-        } 
+        }
 
         return res.status(200).json(customer);
     };
@@ -129,7 +103,7 @@ class CustomersController {
         });
 
         if (!(await schema.isValid(req.body))) {
-            return res.status(400).json({error: "Error on validation schema."});
+            return res.status(400).json({ error: "Error on validation schema." });
         }
 
         const customer = await Customer.create(req.body);
@@ -145,7 +119,7 @@ class CustomersController {
         });
 
         if (!(await schema.isValid(req.body))) {
-            return res.status(400).json({error: "Error on validation schema."});
+            return res.status(400).json({ error: "Error on validation schema." });
         }
 
         const customer = await Customer.findByPk(req.params.id);
@@ -155,7 +129,7 @@ class CustomersController {
         }
 
         await customer.update(req.body);
-        
+
         return res.status(200).json(customer);
     };
 

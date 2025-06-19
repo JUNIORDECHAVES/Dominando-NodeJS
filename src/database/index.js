@@ -4,8 +4,9 @@ import config from "../config/database.js";
 import User from "../app/models/user.js";
 import Customer from "../app/models/customer.js";
 import Contact from "../app/models/contact.js";
+import File from "../app/models/files.js";
 
-const models = [Customer, Contact, User];
+const models = [Customer, Contact, User, File];
 
 class Database {
     constructor() {

@@ -4,6 +4,11 @@ import * as Yup from "yup";
 import { Op } from 'sequelize';
 import { parseISO } from 'date-fns';
 
+import WelcomeEmailJob from '../jobs/WelcomeEmailJob';
+import DummyJob from '../jobs/DummyJob';
+import Queue from "../../lib/Queue";
+
+
 class UsersController {
     async index(req, res) {
         const {
@@ -82,7 +87,7 @@ class UsersController {
 
         const data = await User.findAll({
             attributes: {
-                exclude: ["password" ,"password_hash"],
+                exclude: ["password", "password_hash"],
             },
             where,
             order,
@@ -90,21 +95,25 @@ class UsersController {
             offset: limit * page - limit,
         });
 
-        console.log({userId: req.userId})
+        // console.log({userId: req.userId})
 
         return res.status(200).json(data);
     }
 
     async show(req, res) {
-        const user = await User.findByPk(req.params.id);
+        const user = await User.findByPk(req.params.id, {
+            attributes: {
+                exclude: ["password", "password_hash"],
+            },
+        });
 
 
-        const {id, name, email, createdAt, updatedAt} = user;
+        const { id, name, email, file_id, createdAt, updatedAt } = user;
         if (!user) {
-            return res.status(404).json({error: "User not found"});
-        } 
+            return res.status(404).json({ error: "User not found" });
+        }
 
-        return res.status(200).json({id, name, email, createdAt, updatedAt});
+        return res.status(200).json({ id, name, email, file_id, createdAt, updatedAt });
     }
 
     async create(req, res) {
@@ -112,36 +121,47 @@ class UsersController {
             name: Yup.string().required(),
             email: Yup.string().email().required(),
             password: Yup.string().required().min(8),
-            passwordConfirmation: Yup.string().when("password", (password, field) => 
-                password ? field.required().oneOf([Yup.ref("password")]) : field 
+            passwordConfirmation: Yup.string().when("password", (password, field) =>
+                password ? field.required().oneOf([Yup.ref("password")]) : field
             )
         });
 
         if (!(await schema.isValid(req.body))) {
-            return res.status(400).json({error: "Error on validation schema."});
+            return res.status(400).json({ error: "Error on validation schema." });
         }
 
-        const {id, name, email, createdAt, updatedAt} = await User.create(req.body);
-        return res.status(201).json({id, name, email, createdAt, updatedAt});
+
+        const userExists = await User.findOne({ where: { email: req.body.email } });
+
+        if (userExists) {
+            return res.status(400).json({ error: 'E-mail já cadastrado.' });
+        }
+        const { id, name, email, fileId, createdAt, updatedAt } = await User.create(req.body);
+
+        await Queue.add(WelcomeEmailJob.key, { name, email })
+
+        return res.status(201).json({ id, name, email, fileId, createdAt, updatedAt });
+
     }
 
-    //parei no 1002 - Criando um Middleware no ExpressJS
     async update(req, res) {
         const schema = Yup.object().shape({
             name: Yup.string(),
             email: Yup.string().email(),
+            file_id: Yup.number(),
             oldPassword: Yup.string().min(8),
             password: Yup.string().min(8).when("oldPassword", (oldPassword, field) =>
-            oldPassword ? field.required() : field
+                oldPassword ? field : field
             ),
-            passwordConfirmation: Yup.string().when("password", (password, field) => 
-                password ? field.required().oneOf([Yup.ref("password")]) : field 
+            passwordConfirmation: Yup.string().when("password", (password, field) =>
+                password ? field.oneOf([Yup.ref("password")]) : field
             )
         });
 
         if (!(await schema.isValid(req.body))) {
-            return res.status(400).json({error: "Error on validation schema."});
+            return res.status(400).json({ error: "Error on validation schema." });
         }
+
 
         const user = await User.findByPk(req.params.id);
         if (!user) {
@@ -151,16 +171,16 @@ class UsersController {
         const { oldPassword } = req.body;
 
         if (oldPassword && !(await user.checkPassword(oldPassword))) {
-            return res.status(401).json({error: "Password not match."});
+            return res.status(401).json({ error: "Password not match." });
         }
 
-        const { id, name, email, createdAt, updatedAt } = await user.update(req.body);
-        
-        return res.status(201).json({id, name, email, createdAt, updatedAt});
+        const { id, name, email, file_id, createdAt, updatedAt } = await user.update(req.body);
+
+        return res.status(201).json({ id, name, email, createdAt, updatedAt, file_id });
     }
 
     async destroy(req, res) {
-        const user  = await User.findByPk(req.params.id);
+        const user = await User.findByPk(req.params.id);
 
         user.destroy();
 

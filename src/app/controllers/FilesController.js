@@ -1,8 +1,16 @@
+import File from "../models/files";
 
 class FilesController {
 
     async create(req, res) {
-        res.json({ msg: "okay" });
+        const {originalname: name, filename: path} = req.file;
+
+        const file = await File.create({
+            name,
+            path
+        });
+
+        res.json(file);
     }
 }
 
